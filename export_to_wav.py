@@ -1,5 +1,5 @@
 '''
-Description: This script reads audio data from a rosbag file and saves it to a .wav file.
+Description: This script reads audio data from a rosbag file and saves it to a .wav file, and generates a .txt file with audio metadata.
 
 Dependencies:
 - FFmpeg: Required for exporting audio data to a .wav file.
@@ -45,16 +45,19 @@ def print_connections(reader):
         print(connection.topic, connection.msgtype)
 
 def collect_audio_data(reader, topic):
-    """Collects audio data from the specified topic in the rosbag and returns it as a single byte array."""
+    """Collects audio data from the specified topic in the rosbag and returns it as a single byte array, with the first timestamp."""
     audio_data = bytearray()
+    first_timestamp = None
     
     # Find the connection for the specified topic
     connections = [x for x in reader.connections if x.topic == topic]
     for connection, timestamp, rawdata in reader.messages(connections=connections):
+        if first_timestamp is None:
+            first_timestamp = timestamp
         msg = typestore.deserialize_cdr(rawdata, connection.msgtype)
         audio_data.extend(msg.data)
     
-    return audio_data
+    return audio_data, first_timestamp
 
 def save_audio_to_file(audio_data, output_file, sample_width, frame_rate, channels):
     """Saves the collected audio data to a .wav file."""
@@ -66,6 +69,13 @@ def save_audio_to_file(audio_data, output_file, sample_width, frame_rate, channe
     )
     audio_segment.export(output_file, format='wav')
     print(f"Audio data saved to {output_file}")
+
+def save_metadata_to_file(metadata, output_file):
+    """Saves the metadata information to a .txt file."""
+    with open(output_file, 'w') as file:
+        for key, value in metadata.items():
+            file.write(f"{key}: {value}\n")
+    print(f"Metadata saved to {output_file}")
 
 def main():
     """Main function to read the rosbag, collect audio data, and save it to a file."""
@@ -83,13 +93,23 @@ def main():
         sys.exit(1)
 
     output_file = os.path.splitext(os.path.basename(bag_path))[0] + '.wav'
+    metadata_file = os.path.splitext(os.path.basename(bag_path))[0] + '_audio_metadata.txt'
 
     with Reader(bag_path) as reader:
         print("Reading audio data from the bag file...")
-        audio_data = collect_audio_data(reader, AUDIO_TOPIC)
+        audio_data, first_timestamp = collect_audio_data(reader, AUDIO_TOPIC)
         
         print("Saving audio data to file...")
         save_audio_to_file(audio_data, output_file, args.sample_width, args.frame_rate, args.channels)
+
+        print("Saving metadata to file...")
+        metadata = {
+            "First Audio Timestamp": first_timestamp,
+            "Sample Width": args.sample_width * 8, # Convert to bits
+            "Frame Rate": args.frame_rate,
+            "Channels": args.channels
+        }
+        save_metadata_to_file(metadata, metadata_file)
 
 if __name__ == "__main__":
     main()
