@@ -8,8 +8,8 @@ Dependencies:
 'sudo apt-get install ffmpeg'
 'pip3 install rosbags pydub'
 
-Usage: python3 export_to_wav.py --dir /path/to/your/rosbag/folder
-Example: python3 export_to_wav.py --dir ~/Documents/rosbags/rosbag2_2024_05_29-15_46_13
+Usage: python3 export_to_wav.py --dir /path/to/your/rosbag/folder [--sample_width SAMPLE_WIDTH] [--frame_rate FRAME_RATE] [--channels CHANNELS]
+Example: python3 export_to_wav.py --dir ~/Documents/rosbags/rosbag2_2024_05_29-15_46_13 --sample_width 2 --frame_rate 48000 --channels 1
 
 Assumption: The audio data is published under the topic /audio/audio using the message type audio_common_msgs/msg/AudioData.
 '''
@@ -56,13 +56,13 @@ def collect_audio_data(reader, topic):
     
     return audio_data
 
-def save_audio_to_file(audio_data, output_file):
+def save_audio_to_file(audio_data, output_file, sample_width, frame_rate, channels):
     """Saves the collected audio data to a .wav file."""
     audio_segment = AudioSegment(
         data=bytes(audio_data),
-        sample_width=2,  # Assuming 16-bit samples (2 bytes per sample)
-        frame_rate=44100,  # Assuming a sample rate of 44100 Hz
-        channels=1  # Assuming mono audio
+        sample_width=sample_width,  # Assuming 16-bit samples (2 bytes per sample)
+        frame_rate=frame_rate,  # Assuming a sample rate of 48000 Hz
+        channels=channels  # Assuming mono audio
     )
     audio_segment.export(output_file, format='wav')
     print(f"Audio data saved to {output_file}")
@@ -71,6 +71,9 @@ def main():
     """Main function to read the rosbag, collect audio data, and save it to a file."""
     parser = argparse.ArgumentParser(description='Read audio data from a rosbag and save it to a .wav file.')
     parser.add_argument('--dir', type=str, required=True, help='Path to the rosbag file')
+    parser.add_argument('--sample_width', type=int, default=2, help='Sample width in bytes (default: 2)')
+    parser.add_argument('--frame_rate', type=int, default=48000, help='Frame rate in Hz (default: 48000)')
+    parser.add_argument('--channels', type=int, default=1, help='Number of audio channels (default: 1)')
 
     args = parser.parse_args()
     bag_path = args.dir
@@ -86,7 +89,7 @@ def main():
         audio_data = collect_audio_data(reader, AUDIO_TOPIC)
         
         print("Saving audio data to file...")
-        save_audio_to_file(audio_data, output_file)
+        save_audio_to_file(audio_data, output_file, args.sample_width, args.frame_rate, args.channels)
 
 if __name__ == "__main__":
     main()
